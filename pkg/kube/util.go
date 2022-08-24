@@ -296,6 +296,7 @@ func StripUnusedFields(obj any) (any, error) {
 	t, ok := obj.(metav1.ObjectMetaAccessor)
 	if !ok {
 		// shouldn't happen
+		fmt.Printf("dwq failed %T", obj)
 		return obj, nil
 	}
 	// ManagedFields is large and we never use it
