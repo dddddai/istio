@@ -19,6 +19,7 @@ import (
 
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	"github.com/google/go-cmp/cmp"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	networking "istio.io/api/networking/v1alpha3"
@@ -945,5 +946,245 @@ func Test_routeMatch(t *testing.T) {
 				t.Errorf("routeMatch() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func BenchmarkApplyRouteConfigurationPatches(b *testing.B) {
+	configPatches := []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
+		{
+			ApplyTo: networking.EnvoyFilter_ROUTE_CONFIGURATION,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_SIDECAR_OUTBOUND,
+				ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
+					RouteConfiguration: &networking.EnvoyFilter_RouteConfigurationMatch{
+						PortNumber: 80,
+					},
+				},
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_MERGE,
+				Value:     buildPatchStruct(`{"request_headers_to_remove":["h3", "h4"]}`),
+			},
+		},
+		{
+			ApplyTo: networking.EnvoyFilter_HTTP_ROUTE,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_SIDECAR_OUTBOUND,
+				ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
+					RouteConfiguration: &networking.EnvoyFilter_RouteConfigurationMatch{
+						PortNumber: 80,
+						Vhost: &networking.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
+							Route: &networking.EnvoyFilter_RouteConfigurationMatch_RouteMatch{
+								Action: networking.EnvoyFilter_RouteConfigurationMatch_RouteMatch_ROUTE,
+							},
+						},
+					},
+				},
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_MERGE,
+				Value:     buildPatchStruct(`{"route": { "prefix_rewrite": "/foo"}}`),
+			},
+		},
+		{
+			ApplyTo: networking.EnvoyFilter_HTTP_ROUTE,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_SIDECAR_OUTBOUND,
+				ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
+					RouteConfiguration: &networking.EnvoyFilter_RouteConfigurationMatch{
+						PortNumber: 80,
+						Vhost: &networking.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
+							Route: &networking.EnvoyFilter_RouteConfigurationMatch_RouteMatch{
+								Name: "bar",
+							},
+						},
+					},
+				},
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_REMOVE,
+			},
+		},
+		{
+			ApplyTo: networking.EnvoyFilter_VIRTUAL_HOST,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_SIDECAR_OUTBOUND,
+				ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
+					RouteConfiguration: &networking.EnvoyFilter_RouteConfigurationMatch{
+						Vhost: &networking.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
+							Name: "allow_any",
+						},
+					},
+				},
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_REMOVE,
+			},
+		},
+		{
+			ApplyTo: networking.EnvoyFilter_VIRTUAL_HOST,
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_ADD,
+				Value:     buildPatchStruct(`{"name":"new-vhost"}`),
+			},
+		},
+		{
+			ApplyTo: networking.EnvoyFilter_VIRTUAL_HOST,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_GATEWAY,
+				ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
+					RouteConfiguration: &networking.EnvoyFilter_RouteConfigurationMatch{
+						Vhost: &networking.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
+							Name: "vhost1",
+						},
+					},
+				},
+			},
+			Patch: &networking.EnvoyFilter_Patch{Operation: networking.EnvoyFilter_Patch_REMOVE},
+		},
+		{
+			ApplyTo: networking.EnvoyFilter_VIRTUAL_HOST,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_SIDECAR_INBOUND,
+				ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
+					RouteConfiguration: &networking.EnvoyFilter_RouteConfigurationMatch{
+						Vhost: &networking.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
+							Name: "vhost2",
+						},
+					},
+				},
+			},
+			Patch: &networking.EnvoyFilter_Patch{Operation: networking.EnvoyFilter_Patch_REMOVE},
+		},
+		{
+			ApplyTo: networking.EnvoyFilter_VIRTUAL_HOST,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_ANY,
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_MERGE,
+				Value:     buildPatchStruct(`{"domains":["domain:80"]}`),
+			},
+		},
+		{
+			ApplyTo: networking.EnvoyFilter_HTTP_ROUTE,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_ANY,
+				ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
+					RouteConfiguration: &networking.EnvoyFilter_RouteConfigurationMatch{
+						PortNumber: 9090,
+						Vhost: &networking.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
+							Name: "test.com",
+						},
+					},
+				},
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_ADD,
+				Value:     buildPatchStruct(`{"name": "route4.0"}`),
+			},
+		},
+		{
+			ApplyTo: networking.EnvoyFilter_HTTP_ROUTE,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_ANY,
+				ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
+					RouteConfiguration: &networking.EnvoyFilter_RouteConfigurationMatch{
+						PortNumber: 9090,
+						Vhost: &networking.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
+							Name: "test.com",
+						},
+					},
+				},
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_INSERT_FIRST,
+				Value:     buildPatchStruct(`{"name": "route0.0"}`),
+			},
+		},
+		{
+			ApplyTo: networking.EnvoyFilter_HTTP_ROUTE,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_ANY,
+				ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
+					RouteConfiguration: &networking.EnvoyFilter_RouteConfigurationMatch{
+						PortNumber: 9090,
+						Vhost: &networking.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
+							Name: "test.com",
+							Route: &networking.EnvoyFilter_RouteConfigurationMatch_RouteMatch{
+								Name: "route2.0",
+							},
+						},
+					},
+				},
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_INSERT_AFTER,
+				Value:     buildPatchStruct(`{"name": "route2.5"}`),
+			},
+		},
+		{
+			ApplyTo: networking.EnvoyFilter_HTTP_ROUTE,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_ANY,
+				ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
+					RouteConfiguration: &networking.EnvoyFilter_RouteConfigurationMatch{
+						PortNumber: 9090,
+						Vhost: &networking.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
+							Name: "test.com",
+							Route: &networking.EnvoyFilter_RouteConfigurationMatch_RouteMatch{
+								Name: "route2.0",
+							},
+						},
+					},
+				},
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_INSERT_BEFORE,
+				Value:     buildPatchStruct(`{"name": "route1.5"}`),
+			},
+		},
+	}
+
+	sidecarOutboundRC := &route.RouteConfiguration{
+		Name: "80",
+		VirtualHosts: []*route.VirtualHost{
+			{
+				Name:    "foo.com",
+				Domains: []string{"domain"},
+				Routes: []*route.Route{
+					{
+						Name: "foo",
+						Action: &route.Route_Route{
+							Route: &route.RouteAction{
+								PrefixRewrite: "/",
+							},
+						},
+					},
+					{
+						Name: "bar",
+						Action: &route.Route_Redirect{
+							Redirect: &route.RedirectAction{
+								ResponseCode: 301,
+							},
+						},
+					},
+				},
+			},
+		},
+		RequestHeadersToRemove: []string{"h1", "h2"},
+	}
+
+	serviceDiscovery := memory.NewServiceDiscovery()
+	env := newTestEnvironment(serviceDiscovery, testMesh, buildEnvoyFilterConfigStore(configPatches))
+	push := model.NewPushContext()
+	push.InitContext(env, nil, nil)
+	sidecarNode := &model.Proxy{Type: model.SidecarProxy, ConfigNamespace: "not-default"}
+	efw := push.EnvoyFilters(sidecarNode)
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		route := proto.Clone(sidecarOutboundRC).(*route.RouteConfiguration)
+		ApplyRouteConfigurationPatches(networking.EnvoyFilter_SIDECAR_OUTBOUND, sidecarNode, efw, route)
 	}
 }
