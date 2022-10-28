@@ -373,7 +373,7 @@ func NewController(kubeClient kubelib.Client, options Options) *Controller {
 	nodeInformer := informer.NewFilteredSharedIndexInformer(nil, c.nodeInformer)
 	c.registerHandlers(nodeInformer, "Nodes", c.onNodeEvent, nil)
 
-	podInformer := informer.NewFilteredSharedIndexInformer(c.opts.DiscoveryNamespacesFilter.Filter, kubeClient.KubeInformer().Core().V1().Pods().Informer())
+	podInformer := informer.NewTransformedFilteredSharedIndexInformer(c.opts.DiscoveryNamespacesFilter.Filter, transformPod, kubeClient.KubeInformer().Core().V1().Pods().Informer())
 	c.pods = newPodCache(c, podInformer, func(key string) {
 		item, exists, err := c.endpoints.getInformer().GetIndexer().GetByKey(key)
 		if err != nil {

@@ -50,6 +50,19 @@ func NewFilteredSharedIndexInformer(
 	}
 }
 
+func NewTransformedFilteredSharedIndexInformer(
+	filterFunc func(obj interface{}) bool,
+	transformFunc cache.TransformFunc,
+	sharedIndexInformer cache.SharedIndexInformer,
+) FilteredSharedIndexInformer {
+	sharedIndexInformer.SetTransform(transformFunc)
+	return &filteredSharedIndexInformer{
+		filterFunc:          filterFunc,
+		SharedIndexInformer: sharedIndexInformer,
+		filteredIndexer:     newFilteredIndexer(filterFunc, sharedIndexInformer.GetIndexer()),
+	}
+}
+
 // AddEventHandler filters incoming objects before forwarding to event handler
 func (w *filteredSharedIndexInformer) AddEventHandler(handler cache.ResourceEventHandler) {
 	w.SharedIndexInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{

@@ -20,6 +20,7 @@ import (
 	"sync"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
 	"istio.io/istio/pilot/pkg/model"
@@ -322,4 +323,57 @@ func (pc *PodCache) getPodByProxy(proxy *model.Proxy) *v1.Pod {
 	proxyIP := proxy.IPAddresses[0]
 	// just in case the proxy ID is bad formatted
 	return pc.getPodByIP(proxyIP)
+}
+
+func transformPod(obj interface{}) (interface{}, error) {
+	// When a pod is deleted obj could be an *v1.Pod or a DeletionFinalStateUnknown marker item.
+	pod, ok := obj.(*v1.Pod)
+	if !ok {
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			return obj, fmt.Errorf("couldn't get object from tombstone %+v", obj)
+		}
+		pod, ok = tombstone.Obj.(*v1.Pod)
+		if !ok {
+			return obj, fmt.Errorf("tombstone contained object that is not a pod %#v", obj)
+		}
+	}
+
+	// retain fields we care about
+	// update this if we need more fields to in the future
+	return &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:         pod.Namespace,
+			Name:              pod.Name,
+			Labels:            pod.Labels,            // https://github.com/istio/istio/blob/1.14.0-alpha.0/pilot/pkg/serviceregistry/kube/controller/endpoint_builder.go#L55
+			GenerateName:      pod.GenerateName,      // https://github.com/istio/istio/blob/1.14.0-alpha.0/pkg/kube/util.go#L216
+			OwnerReferences:   pod.OwnerReferences,   // https://github.com/istio/istio/blob/1.14.0-alpha.0/pkg/kube/util.go#L220
+			DeletionTimestamp: pod.DeletionTimestamp, // https://github.com/istio/istio/blob/1.14.0-alpha.0/pilot/pkg/serviceregistry/kube/controller/pod.go#L140
+		},
+		Spec: v1.PodSpec{
+			Containers:         transformContainers(pod),    // https://github.com/istio/istio/blob/1.14.0-alpha.0/pilot/pkg/serviceregistry/kube/controller/pod.go#L184
+			RestartPolicy:      pod.Spec.RestartPolicy,      // https://github.com/istio/istio/blob/1.14.0-alpha.0/pilot/pkg/serviceregistry/kube/controller/pod.go#L67
+			NodeName:           pod.Spec.NodeName,           // https://github.com/istio/istio/blob/1.14.0-alpha.0/pilot/pkg/serviceregistry/kube/controller/controller.go#L877
+			Hostname:           pod.Spec.Hostname,           // https://github.com/istio/istio/blob/1.14.0-alpha.0/pilot/pkg/serviceregistry/kube/controller/endpoint_builder.go#L59
+			Subdomain:          pod.Spec.Subdomain,          // https://github.com/istio/istio/blob/1.14.0-alpha.0/pilot/pkg/serviceregistry/kube/controller/endpoint_builder.go#L57
+			ServiceAccountName: pod.Spec.ServiceAccountName, // https://github.com/istio/istio/blob/1.14.0-alpha.0/pilot/pkg/serviceregistry/kube/conversion.go#L211
+		},
+		Status: v1.PodStatus{
+			Phase:      pod.Status.Phase,      // https://github.com/istio/istio/blob/1.14.0-alpha.0/pilot/pkg/serviceregistry/kube/controller/pod.go#L69
+			PodIP:      pod.Status.PodIP,      // https://github.com/istio/istio/blob/1.14.0-alpha.0/pilot/pkg/serviceregistry/kube/controller/pod.go#L129
+			Conditions: pod.Status.Conditions, // https://github.com/istio/istio/blob/1.14.0-alpha.0/pilot/pkg/serviceregistry/kube/controller/pod.go#L97
+		},
+	}, nil
+}
+
+func transformContainers(pod *v1.Pod) []v1.Container {
+	containers := pod.Spec.Containers
+	result := make([]v1.Container, 0, len(containers))
+	for i := range containers {
+		c := containers[i]
+		result = append(result, v1.Container{
+			Ports: c.Ports, // https://github.com/istio/istio/blob/1.14.0-alpha.0/pilot/pkg/serviceregistry/kube/controller/pod.go#L185
+		})
+	}
+	return result
 }
