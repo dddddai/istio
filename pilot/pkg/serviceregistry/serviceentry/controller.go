@@ -422,6 +422,9 @@ func (s *Controller) serviceEntryHandler(_, curr config.Config, event model.Even
 	fullPush := len(configsUpdated) > 0
 	// if not full push needed, at least one service unchanged
 	if !fullPush {
+		for _, si := range serviceInstances {
+			fmt.Printf("dwq %#v\n", si)
+		}
 		s.edsUpdate(serviceInstances)
 		return
 	}
@@ -730,6 +733,7 @@ func (s *Controller) doEdsUpdate(keys map[instancesKey]struct{}) {
 		}
 	} else {
 		for k, eps := range endpoints {
+			fmt.Printf("dwq endpoints: %#v: %#v\n", k, eps)
 			s.XdsUpdater.EDSUpdate(shard, string(k.hostname), k.namespace, eps)
 		}
 	}
