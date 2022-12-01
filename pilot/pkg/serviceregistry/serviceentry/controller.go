@@ -370,6 +370,7 @@ func (s *Controller) serviceEntryHandler(_, curr config.Config, event model.Even
 	}
 
 	fmt.Printf("dwq svc add %d, delete %d, update %d, unchanged %d\n", len(addedSvcs), len(deletedSvcs), len(updatedSvcs), len(unchangedSvcs))
+	fmt.Printf("dwq se %+v\n", curr)
 
 	serviceInstancesByConfig, serviceInstances := s.buildServiceInstances(curr, cs)
 	for _, si := range serviceInstances {
