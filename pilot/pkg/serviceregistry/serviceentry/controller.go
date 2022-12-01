@@ -369,11 +369,11 @@ func (s *Controller) serviceEntryHandler(_, curr config.Config, event model.Even
 		unchangedSvcs = cs
 	}
 
-	println("dwq svc update", len(updatedSvcs), "unchanged", len(unchangedSvcs))
+	fmt.Printf("dwq svc add %d, delete %d, update %d, unchanged %d\n", len(addedSvcs), len(deletedSvcs), len(updatedSvcs), len(unchangedSvcs))
 
 	serviceInstancesByConfig, serviceInstances := s.buildServiceInstances(curr, cs)
 	for _, si := range serviceInstances {
-		fmt.Printf("dwq si %#v\n", si)
+		fmt.Printf("dwq si %+v\n", si)
 	}
 
 	oldInstances := s.serviceInstances.getServiceEntryInstances(key)
@@ -429,7 +429,7 @@ func (s *Controller) serviceEntryHandler(_, curr config.Config, event model.Even
 	// if not full push needed, at least one service unchanged
 	if !fullPush {
 		for _, si := range serviceInstances {
-			fmt.Printf("dwq eds %#v\n", si)
+			fmt.Printf("dwq eds %+v\n", si)
 		}
 		s.edsUpdate(serviceInstances)
 		return
@@ -723,7 +723,7 @@ func (s *Controller) doEdsCacheUpdate(keys map[instancesKey]struct{}) {
 		}
 	} else {
 		for k, eps := range endpoints {
-			fmt.Printf("dwq ep cache: %#v: %#v\n", k, eps)
+			fmt.Printf("dwq ep cache: %+v: %+v\n", k, eps)
 			s.XdsUpdater.EDSCacheUpdate(shard, string(k.hostname), k.namespace, eps)
 		}
 	}
@@ -740,7 +740,7 @@ func (s *Controller) doEdsUpdate(keys map[instancesKey]struct{}) {
 		}
 	} else {
 		for k, eps := range endpoints {
-			fmt.Printf("dwq endpoints: %#v: %#v\n", k, eps)
+			fmt.Printf("dwq endpoints: %+v: %+v\n", k, eps)
 			s.XdsUpdater.EDSUpdate(shard, string(k.hostname), k.namespace, eps)
 		}
 	}
@@ -835,9 +835,11 @@ func servicesDiff(os []*model.Service, ns []*model.Service) ([]*model.Service, [
 	oldServiceHosts := make(map[host.Name]*model.Service, len(os))
 	newServiceHosts := make(map[host.Name]*model.Service, len(ns))
 	for _, s := range os {
+		fmt.Printf("dwq old svc %+v\n", s)
 		oldServiceHosts[s.Hostname] = s
 	}
 	for _, s := range ns {
+		fmt.Printf("dwq new svc %+v\n", s)
 		newServiceHosts[s.Hostname] = s
 	}
 
