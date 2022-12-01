@@ -369,7 +369,13 @@ func (s *Controller) serviceEntryHandler(_, curr config.Config, event model.Even
 		unchangedSvcs = cs
 	}
 
+	println("dwq svc update", len(updatedSvcs), "unchanged", len(unchangedSvcs))
+
 	serviceInstancesByConfig, serviceInstances := s.buildServiceInstances(curr, cs)
+	for _, si := range serviceInstances {
+		fmt.Printf("dwq si %#v\n", si)
+	}
+
 	oldInstances := s.serviceInstances.getServiceEntryInstances(key)
 	for configKey, old := range oldInstances {
 		s.serviceInstances.deleteInstances(configKey, old)
@@ -423,7 +429,7 @@ func (s *Controller) serviceEntryHandler(_, curr config.Config, event model.Even
 	// if not full push needed, at least one service unchanged
 	if !fullPush {
 		for _, si := range serviceInstances {
-			fmt.Printf("dwq %#v\n", si)
+			fmt.Printf("dwq eds %#v\n", si)
 		}
 		s.edsUpdate(serviceInstances)
 		return
@@ -717,6 +723,7 @@ func (s *Controller) doEdsCacheUpdate(keys map[instancesKey]struct{}) {
 		}
 	} else {
 		for k, eps := range endpoints {
+			fmt.Printf("dwq ep cache: %#v: %#v\n", k, eps)
 			s.XdsUpdater.EDSCacheUpdate(shard, string(k.hostname), k.namespace, eps)
 		}
 	}
