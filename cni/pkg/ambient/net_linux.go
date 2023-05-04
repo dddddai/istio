@@ -855,21 +855,7 @@ func (s *Server) createTProxyRulesForLegacyEBPF(ztunnelIP, ifName string) error 
 
 	// Set up append rules
 	appendRules := []*iptablesRule{
-		// Set eBPF mark on inbound packets
-		newIptableRule(
-			constants.TableMangle,
-			"PREROUTING",
-			"-p", "tcp",
-			"-m", "mark",
-			"--mark", constants.EBPFInboundMark,
-			"-m", "tcp",
-			"--dport", fmt.Sprintf("%d", constants.ZtunnelInboundPort),
-			"-j", "TPROXY",
-			"--tproxy-mark", fmt.Sprintf("0x%x", constants.TProxyMark)+"/"+fmt.Sprintf("0x%x", constants.TProxyMask),
-			"--on-port", fmt.Sprintf("%d", constants.ZtunnelInboundPort),
-			"--on-ip", "127.0.0.1",
-		),
-		// Same mark, but on plaintext port
+		// Set eBPF mark on inbound plaintext port
 		newIptableRule(
 			constants.TableMangle,
 			"PREROUTING",

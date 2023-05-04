@@ -251,14 +251,14 @@ func (r *RedirectServer) initBpfObjects() error {
 	r.ztunnelHostingressFd = uint32(r.obj.ZtunnelHostIngress.FD())
 	ztunnelHostingressInfo, err := r.obj.ZtunnelHostIngress.Info()
 	if err != nil {
-		return fmt.Errorf("unable to load metadata of bfp prog: %v", err)
+		return fmt.Errorf("unable to load metadata of bpf prog: %v", err)
 	}
 	r.ztunnelHostingressProgName = ztunnelHostingressInfo.Name
 
 	r.ztunnelIngressFd = uint32(r.obj.ZtunnelIngress.FD())
 	ztunnelIngressInfo, err := r.obj.ZtunnelIngress.Info()
 	if err != nil {
-		return fmt.Errorf("unable to load metadata of bfp prog: %v", err)
+		return fmt.Errorf("unable to load metadata of bpf prog: %v", err)
 	}
 	r.ztunnelIngressProgName = ztunnelIngressInfo.Name
 
@@ -267,13 +267,13 @@ func (r *RedirectServer) initBpfObjects() error {
 	r.inboundFd = uint32(r.obj.AppInbound.FD())
 	inboundInfo, err := r.obj.AppInbound.Info()
 	if err != nil {
-		return fmt.Errorf("unable to load metadata of bfp prog: %v", err)
+		return fmt.Errorf("unable to load metadata of bpf prog: %v", err)
 	}
 	r.inboundProgName = inboundInfo.Name
 	r.outboundFd = uint32(r.obj.AppOutbound.FD())
 	outboundInfo, err := r.obj.AppOutbound.Info()
 	if err != nil {
-		return fmt.Errorf("unable to load metadata of bfp prog: %v", err)
+		return fmt.Errorf("unable to load metadata of bpf prog: %v", err)
 	}
 	r.outboundProgName = outboundInfo.Name
 	return nil

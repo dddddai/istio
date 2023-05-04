@@ -29,7 +29,7 @@
 |-----------------------------------------------------------------|
 |             |                 Val(log level)                    |
 |-----------------------------------------------------------------|
-|  0          | 0:none, 1:fatal, 2:error, 3:warn, 4:info, 5:debug |
+|  0          |             0:none, 1:info, 2:debug               |
 |-----------------------------------------------------------------|
 */
 
@@ -297,39 +297,24 @@ int ztunnel_ingress(struct __sk_buff *skb)
     if (iph->protocol != IPPROTO_TCP)
         return TC_ACT_OK;
 
-    tuple = (struct bpf_sock_tuple *)&iph->saddr;
-    tuple_len = sizeof(tuple->ipv4);
-    if ((void *)tuple + sizeof(tuple->ipv4) > (void *)(long)skb->data_end)
+    struct tcphdr *tcph = (void*)iph + iph->ihl*4;
+    if ((void*)tcph + sizeof(*tcph) > data_end)
         return TC_ACT_SHOT;
 
+    int first_packet = tcph->syn && !tcph->ack;
+    if(!first_packet){
+        return TC_ACT_OK;
+    }
     if (skb->cb[4] == OUTBOUND_CB) {
         // We mark all app egress pkt as outbound and redirect here.
         // We need identify if it's a actual *outbound* or just a reponse to
         // the proxy
-        sk = bpf_skc_lookup_tcp(skb, tuple, tuple_len, BPF_F_CURRENT_NETNS, 0);
-        if (sk) {
-            if (sk->state != BPF_TCP_LISTEN) {
-                skip_mark = 1;
-            }
-            bpf_sk_release(sk);
-        }
-        if (!skip_mark) {
-            skb->mark = ZTUNNEL_OUTBOUND_MARK;
-            dbg("got packet with out cb mark 0x%x, mark packet: %u\n", skb->cb[4], skb->mark);
-        }
+        skb->mark = ZTUNNEL_OUTBOUND_MARK;
+        dbg("got packet with out cb mark 0x%x, mark packet: %u\n", skb->cb[4], skb->mark);
     } else if (skb->cb[4] == INBOUND_CB) {
         // For original source case, app will overwrite
         // the cb[4] and redirect here.
-        sk = bpf_skc_lookup_tcp(skb, tuple, tuple_len, BPF_F_CURRENT_NETNS, 0);
-        if (sk) {
-            if (sk->state != BPF_TCP_LISTEN
-                && sk->src_port != ZTUNNEL_INBOUND_PORT
-                && sk->src_port != ZTUNNEL_INBOUND_PLAINTEXT_PORT) {
-                skip_mark = 1;
-            }
-            bpf_sk_release(sk);
-        }
-        if (!skip_mark) {
+        if (tcph->dest != bpf_htons(ZTUNNEL_INBOUND_PORT)) {
             skb->mark = ZTUNNEL_INBOUND_MARK;
             dbg("got inbound packet with in cb 0x%x, mark packet: %u\n", skb->cb[4], skb->mark);
         }
@@ -346,7 +331,6 @@ int ztunnel_tproxy(struct __sk_buff *skb)
     void *data = (void *)(long)skb->data;
     struct ethhdr  *eth = data;
     void *data_end = (void *)(long)skb->data_end;
-    struct bpf_sock_tuple *tuple;
     size_t tuple_len;
     struct bpf_sock *sk;
     __u32 *log_level = get_log_level();
@@ -371,18 +355,26 @@ int ztunnel_tproxy(struct __sk_buff *skb)
     if (iph->protocol != IPPROTO_TCP)
         return TC_ACT_OK;
 
-    tuple = (struct bpf_sock_tuple *)&iph->saddr;
-    tuple_len = sizeof(tuple->ipv4);
-    if ((void *)tuple + sizeof(tuple->ipv4) > (void *)(long)skb->data_end)
+    struct tcphdr *tcph = (void*)iph + iph->ihl*4;
+    if ((void*)tcph + sizeof(*tcph) > data_end)
         return TC_ACT_SHOT;
 
-    sk = bpf_skc_lookup_tcp(skb, tuple, tuple_len, BPF_F_CURRENT_NETNS, 0);
-    if (sk && sk->state == BPF_TCP_LISTEN) {
-        bpf_sk_release(sk);
-        sk = NULL;
+    int first_packet = tcph->syn && !tcph->ack;
+    if(!first_packet){
+        return TC_ACT_OK;
     }
+
+    struct bpf_sock_tuple tuple = {};
+    tuple.ipv4.saddr = iph->saddr;
+    tuple.ipv4.daddr = iph->daddr;
+    tuple.ipv4.sport = tcph->source;
+    tuple.ipv4.dport = tcph->dest;
+
+    tuple_len = sizeof(tuple->ipv4);
+
+    sk = bpf_skc_lookup_tcp(skb, &tuple, tuple_len, BPF_F_CURRENT_NETNS, 0);
     if (!sk) {
-        // No exisiting connection, try to find listner
+        // No exisiting connection, try to find listener
         __builtin_memset(&proxy_tup, 0, sizeof(proxy_tup));
 
         if (skb->cb[4] == OUTBOUND_CB) {
