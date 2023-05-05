@@ -274,7 +274,6 @@ int ztunnel_ingress(struct __sk_buff *skb)
     void *data = (void *)(long)skb->data;
     struct ethhdr  *eth = data;
     void *data_end = (void *)(long)skb->data_end;
-    struct bpf_sock_tuple *tuple;
     size_t tuple_len;
     struct bpf_sock *sk;
     int skip_mark = 0;
