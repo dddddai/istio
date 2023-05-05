@@ -18,7 +18,6 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	klabels "k8s.io/apimachinery/pkg/labels"
 
 	"istio.io/istio/cni/pkg/ambient/ambientpod"
@@ -51,12 +50,6 @@ func (s *Server) setupHandlers() {
 func (s *Server) Run(stop <-chan struct{}) {
 	go s.queue.Run(stop)
 	<-stop
-}
-
-func (s *Server) ReconcileNamespaces() {
-	for _, ns := range s.namespaces.List(metav1.NamespaceAll, klabels.Everything()) {
-		s.EnqueueNamespace(ns)
-	}
 }
 
 // EnqueueNamespace takes a Namespace and enqueues all Pod objects that make need an update

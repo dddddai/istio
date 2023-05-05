@@ -245,11 +245,6 @@ func (s *Server) ReconcileZtunnel() error {
 			return fmt.Errorf("failed to configure ztunnel: %v", err)
 		}
 	}
-
-	// Reconcile namespaces, as it is possible for the original reconciliation to have failed, and a
-	// small pod to have started up before ztunnel is running... so we need to go back and make sure we
-	// catch the existing pods
-	s.ReconcileNamespaces()
 	return nil
 }
 
