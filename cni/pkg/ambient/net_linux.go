@@ -829,8 +829,10 @@ func (s *Server) CreateEBPFRulesWithinNodeProxyNS(proxyNsVethIdx int, ztunnelIP,
 		}
 
 		if ebpf.EBPFTProxySupport() {
+			log.Info("dwq tproxy")
 			return nil
 		}
+		log.Info("dwq no tproxy")
 		log.Infof("Current kernel doesn't support tproxy in eBPF, fall back to iptables tproxy rules")
 		return s.createTProxyRulesForLegacyEBPF(ztunnelIP, vethLink.Attrs().Name)
 	})
