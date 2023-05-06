@@ -372,6 +372,10 @@ int ztunnel_tproxy(struct __sk_buff *skb)
     tuple_len = sizeof(tuple.ipv4);
 
     sk = bpf_skc_lookup_tcp(skb, &tuple, tuple_len, BPF_F_CURRENT_NETNS, 0);
+    if (sk && sk->state == BPF_TCP_LISTEN) {
+        bpf_sk_release(sk);
+        sk = NULL;
+    }
     if (!sk) {
         // No exisiting connection, try to find listener
         __builtin_memset(&proxy_tup, 0, sizeof(proxy_tup));

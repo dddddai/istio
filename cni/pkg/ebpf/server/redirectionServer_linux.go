@@ -125,7 +125,7 @@ type eBPFObjectsImplNew struct {
 }
 
 func EBPFTProxySupport() bool {
-	return false
+	//return false
 	err := features.HaveProgramHelper(ebpf.SchedCLS, asm.FnSkAssign)
 	if err == nil {
 		return true
