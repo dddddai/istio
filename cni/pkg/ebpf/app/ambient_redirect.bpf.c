@@ -369,7 +369,7 @@ int ztunnel_tproxy(struct __sk_buff *skb)
     tuple.ipv4.sport = tcph->source;
     tuple.ipv4.dport = tcph->dest;
 
-    tuple_len = sizeof(tuple->ipv4);
+    tuple_len = sizeof(tuple.ipv4);
 
     sk = bpf_skc_lookup_tcp(skb, &tuple, tuple_len, BPF_F_CURRENT_NETNS, 0);
     if (!sk) {
@@ -379,7 +379,7 @@ int ztunnel_tproxy(struct __sk_buff *skb)
         if (skb->cb[4] == OUTBOUND_CB) {
             proxy_port = bpf_htons(ZTUNNEL_OUTBOUND_PORT);
         } else {
-            if (tuple->ipv4.dport != bpf_htons(ZTUNNEL_INBOUND_PORT)) {
+            if (tuple.ipv4.dport != bpf_htons(ZTUNNEL_INBOUND_PORT)) {
                 // for plaintext case
                 proxy_port = bpf_htons(ZTUNNEL_INBOUND_PLAINTEXT_PORT);
             } else {
