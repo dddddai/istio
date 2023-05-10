@@ -358,10 +358,10 @@ int ztunnel_tproxy(struct __sk_buff *skb)
     if ((void*)tcph + sizeof(*tcph) > data_end)
         return TC_ACT_SHOT;
 
-    int first_packet = tcph->syn && !tcph->ack;
-    if(!first_packet){
-        return TC_ACT_OK;
-    }
+    // int first_packet = tcph->syn && !tcph->ack;
+    // if(!first_packet){
+    //     return TC_ACT_OK;
+    // }
 
     struct bpf_sock_tuple tuple = {};
     tuple.ipv4.saddr = iph->saddr;
