@@ -383,7 +383,7 @@ int ztunnel_tproxy(struct __sk_buff *skb)
         if (skb->cb[4] == OUTBOUND_CB) {
             proxy_port = bpf_htons(ZTUNNEL_OUTBOUND_PORT);
         } else {
-            if (tuple.ipv4.dport != bpf_htons(ZTUNNEL_INBOUND_PORT)) {
+            if (tcph->dest != bpf_htons(ZTUNNEL_INBOUND_PORT)) {
                 // for plaintext case
                 proxy_port = bpf_htons(ZTUNNEL_INBOUND_PLAINTEXT_PORT);
             } else {
