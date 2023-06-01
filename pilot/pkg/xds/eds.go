@@ -183,6 +183,15 @@ func (s *DiscoveryServer) edsCacheUpdate(shard model.ShardKey, hostname string, 
 		pushType = FullPush
 	}
 
+	// Check if ports have changed. We should do a full push if they have changed.
+	portsUpdated := s.UpdateEndpointPorts(ep, hostname)
+
+	if portsUpdated && pushType != FullPush {
+		// Avoid extra logging if already a full push
+		log.Infof("Full push, service accounts changed, %v", hostname)
+		pushType = FullPush
+	}
+
 	// Clear the cache here. While it would likely be cleared later when we trigger a push, a race
 	// condition is introduced where an XDS response may be generated before the update, but not
 	// completed until after a response after the update. Essentially, we transition from v0 -> v1 ->
@@ -216,6 +225,27 @@ func (s *DiscoveryServer) UpdateServiceAccount(shards *model.EndpointShards, ser
 		shards.ServiceAccounts = serviceAccounts
 		log.Debugf("Updating service accounts now, svc %v, before service account %v, after %v",
 			serviceName, oldServiceAccount, serviceAccounts)
+		return true
+	}
+
+	return false
+}
+
+// UpdateServiceAccount updates the service endpoints' sa when service/endpoint event happens.
+// Note: it is not concurrent safe.
+func (s *DiscoveryServer) UpdateEndpointPorts(shards *model.EndpointShards, serviceName string) bool {
+	oldPorts := shards.Ports
+	ports := sets.String{}
+	for _, epShards := range shards.Shards {
+		for _, ep := range epShards {
+			ports.Insert(ep.ServicePortName)
+		}
+	}
+
+	if !oldPorts.Equals(ports) {
+		shards.Ports = ports
+		log.Debugf("Updating endpoint ports now, svc %v, before %v, after %v",
+			serviceName, oldPorts, ports)
 		return true
 	}
 
