@@ -274,7 +274,6 @@ int ztunnel_ingress(struct __sk_buff *skb)
     void *data = (void *)(long)skb->data;
     struct ethhdr  *eth = data;
     void *data_end = (void *)(long)skb->data_end;
-    struct bpf_sock_tuple *tuple;
     size_t tuple_len;
     struct bpf_sock *sk;
     int skip_mark = 0;
@@ -297,16 +296,23 @@ int ztunnel_ingress(struct __sk_buff *skb)
     if (iph->protocol != IPPROTO_TCP)
         return TC_ACT_OK;
 
-    tuple = (struct bpf_sock_tuple *)&iph->saddr;
-    tuple_len = sizeof(tuple->ipv4);
-    if ((void *)tuple + sizeof(tuple->ipv4) > (void *)(long)skb->data_end)
-        return TC_ACT_SHOT;
+    struct tcphdr *tcph = (void*)iph + iph->ihl*4;
+    if ((void*)tcph + sizeof(*tcph) > data_end)
+        return TC_ACT_OK;
+
+    struct bpf_sock_tuple tuple = {};
+    tuple.ipv4.saddr = iph->saddr;
+    tuple.ipv4.daddr = iph->daddr;
+    tuple.ipv4.sport = tcph->source;
+    tuple.ipv4.dport = tcph->dest;
+
+    tuple_len = sizeof(tuple.ipv4);
 
     if (skb->cb[4] == OUTBOUND_CB) {
         // We mark all app egress pkt as outbound and redirect here.
         // We need identify if it's a actual *outbound* or just a reponse to
         // the proxy
-        sk = bpf_skc_lookup_tcp(skb, tuple, tuple_len, BPF_F_CURRENT_NETNS, 0);
+        sk = bpf_skc_lookup_tcp(skb, &tuple, tuple_len, BPF_F_CURRENT_NETNS, 0);
         if (sk) {
             if (sk->state != BPF_TCP_LISTEN) {
                 skip_mark = 1;
@@ -320,7 +326,7 @@ int ztunnel_ingress(struct __sk_buff *skb)
     } else if (skb->cb[4] == INBOUND_CB) {
         // For original source case, app will overwrite
         // the cb[4] and redirect here.
-        sk = bpf_skc_lookup_tcp(skb, tuple, tuple_len, BPF_F_CURRENT_NETNS, 0);
+        sk = bpf_skc_lookup_tcp(skb, &tuple, tuple_len, BPF_F_CURRENT_NETNS, 0);
         if (sk) {
             if (sk->state != BPF_TCP_LISTEN
                 && sk->src_port != ZTUNNEL_INBOUND_PORT
@@ -346,7 +352,6 @@ int ztunnel_tproxy(struct __sk_buff *skb)
     void *data = (void *)(long)skb->data;
     struct ethhdr  *eth = data;
     void *data_end = (void *)(long)skb->data_end;
-    struct bpf_sock_tuple *tuple;
     size_t tuple_len;
     struct bpf_sock *sk;
     __u32 *log_level = get_log_level();
@@ -371,24 +376,31 @@ int ztunnel_tproxy(struct __sk_buff *skb)
     if (iph->protocol != IPPROTO_TCP)
         return TC_ACT_OK;
 
-    tuple = (struct bpf_sock_tuple *)&iph->saddr;
-    tuple_len = sizeof(tuple->ipv4);
-    if ((void *)tuple + sizeof(tuple->ipv4) > (void *)(long)skb->data_end)
-        return TC_ACT_SHOT;
+    struct tcphdr *tcph = (void*)iph + iph->ihl*4;
+    if ((void*)tcph + sizeof(*tcph) > data_end)
+        return TC_ACT_OK;
+        
+    struct bpf_sock_tuple tuple = {};
+    tuple.ipv4.saddr = iph->saddr;
+    tuple.ipv4.daddr = iph->daddr;
+    tuple.ipv4.sport = tcph->source;
+    tuple.ipv4.dport = tcph->dest;
 
-    sk = bpf_skc_lookup_tcp(skb, tuple, tuple_len, BPF_F_CURRENT_NETNS, 0);
+    tuple_len = sizeof(tuple.ipv4);
+
+    sk = bpf_skc_lookup_tcp(skb, &tuple, tuple_len, BPF_F_CURRENT_NETNS, 0);
     if (sk && sk->state == BPF_TCP_LISTEN) {
         bpf_sk_release(sk);
         sk = NULL;
     }
     if (!sk) {
-        // No exisiting connection, try to find listner
+        // No exisiting connection, try to find listener
         __builtin_memset(&proxy_tup, 0, sizeof(proxy_tup));
 
         if (skb->cb[4] == OUTBOUND_CB) {
             proxy_port = bpf_htons(ZTUNNEL_OUTBOUND_PORT);
         } else {
-            if (tuple->ipv4.dport != bpf_htons(ZTUNNEL_INBOUND_PORT)) {
+            if (tuple.ipv4.dport != bpf_htons(ZTUNNEL_INBOUND_PORT)) {
                 // for plaintext case
                 proxy_port = bpf_htons(ZTUNNEL_INBOUND_PLAINTEXT_PORT);
             } else {
