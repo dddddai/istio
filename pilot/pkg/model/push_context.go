@@ -1114,6 +1114,7 @@ func (ps *PushContext) destinationRule(proxyNameSpace string, service *Service) 
 	if service == nil {
 		return nil
 	}
+	println("dwq find dr for", proxyNameSpace, service.Hostname)
 	// If the proxy config namespace is same as the root config namespace
 	// look for dest rules in the service's namespace first. This hack is needed
 	// because sometimes, istio-system tends to become the root config namespace.
@@ -1131,6 +1132,7 @@ func (ps *PushContext) destinationRule(proxyNameSpace string, service *Service) 
 				ps.destinationRuleIndex.namespaceLocal[proxyNameSpace].specificDestRules,
 				ps.destinationRuleIndex.namespaceLocal[proxyNameSpace].wildcardDestRules,
 			); ok {
+				println("dwq find dr in local ns", proxyNameSpace, service.Hostname, len(drs))
 				return drs
 			}
 		}
@@ -1165,8 +1167,10 @@ func (ps *PushContext) destinationRule(proxyNameSpace string, service *Service) 
 	// check the target service's namespace for exported rules
 	if svcNs != "" {
 		if out := ps.getExportedDestinationRuleFromNamespace(svcNs, service.Hostname, proxyNameSpace); out != nil {
+			println("dwq found exported dr", proxyNameSpace, service.Hostname, len(out))
 			return out
 		}
+		println("dwq not found exported dr", proxyNameSpace, service.Hostname)
 	}
 
 	// 4. if no public/private rule in calling proxy's namespace matched, and no public rule in the
@@ -1895,7 +1899,7 @@ func (ps *PushContext) setDestinationRules(configs []config.Config) {
 		// We only honor . and *
 		if exportToSet.IsEmpty() && ps.exportToDefaults.destinationRule.Contains(visibility.Private) {
 			isPrivateOnly = true
-		} else if exportToSet.Len() == 1 && exportToSet.Contains(visibility.Private) || exportToSet.Contains(visibility.Instance(configs[i].Namespace)) {
+		} else if exportToSet.Len() == 1 && (exportToSet.Contains(visibility.Private) || exportToSet.Contains(visibility.Instance(configs[i].Namespace))) {
 			isPrivateOnly = true
 		}
 
@@ -1915,6 +1919,25 @@ func (ps *PushContext) setDestinationRules(configs []config.Config) {
 	ps.destinationRuleIndex.namespaceLocal = namespaceLocalDestRules
 	ps.destinationRuleIndex.exportedByNamespace = exportedDestRulesByNamespace
 	ps.destinationRuleIndex.rootNamespaceLocal = rootNamespaceLocalDestRules
+
+	for k, v := range namespaceLocalDestRules {
+		println("dwq local dr in", k)
+		fmt.Println("export to %v", v.exportTo)
+		for _, drs := range v.specificDestRules {
+			for _, dr := range drs {
+				fmt.Println("dr %v", dr.from)
+			}
+		}
+	}
+	for k, v := range exportedDestRulesByNamespace {
+		println("dwq export dr in", k)
+		fmt.Println("export to %v", v.exportTo)
+		for _, drs := range v.specificDestRules {
+			for _, dr := range drs {
+				fmt.Println("dr %v", dr.from)
+			}
+		}
+	}
 }
 
 // pre computes all AuthorizationPolicies per namespace

@@ -242,10 +242,12 @@ func DefaultSidecarScopeForNamespace(ps *PushContext, configNamespace string) *S
 			continue
 		}
 		out.servicesByHostname[s.Hostname] = s
+		println("dwq got", s.Hostname, configNamespace)
 		if dr := ps.destinationRule(configNamespace, s); dr != nil {
 			out.destinationRules[s.Hostname] = dr
 			for _, cdr := range dr {
 				for _, from := range cdr.from {
+					println("dwq got", from.Name, configNamespace)
 					out.destinationRulesByNames[from] = cdr.rule
 					out.AddConfigDependencies(ConfigKey{
 						Kind:      kind.DestinationRule,
